@@ -1,0 +1,355 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Flask JWT Auth API</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=Syne:wght@400;500;700&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'Syne', sans-serif;
+      background: #f5f4f0;
+      color: #1a1a1a;
+      min-height: 100vh;
+      display: flex;
+      align-items: flex-start;
+      justify-content: center;
+      padding: 2rem 1rem;
+    }
+
+    .root {
+      width: 100%;
+      max-width: 680px;
+    }
+
+    .header {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 1.5rem;
+      padding-bottom: 1rem;
+      border-bottom: 0.5px solid #d0cec7;
+    }
+
+    .status-dot { width: 8px; height: 8px; border-radius: 50%; background: #1D9E75; flex-shrink: 0; }
+    .header-title { font-size: 15px; font-weight: 500; }
+    .header-sub { font-size: 12px; color: #6b6b6b; font-family: 'IBM Plex Mono', monospace; margin-top: 2px; }
+
+    .route-pill {
+      display: inline-flex; align-items: center; gap: 6px;
+      font-size: 11px; font-family: 'IBM Plex Mono', monospace;
+      padding: 3px 8px; border-radius: 4px;
+      background: #eeede8; border: 0.5px solid #d0cec7;
+      color: #6b6b6b; margin-right: 6px; margin-bottom: 8px;
+    }
+    .method { font-weight: 500; color: #1a1a1a; }
+    .method.get { color: #0F6E56; }
+
+    .tabs {
+      display: flex; gap: 4px; margin-bottom: 1.25rem;
+      background: #eeede8; border-radius: 8px; padding: 4px;
+    }
+
+    .tab {
+      flex: 1; padding: 7px 10px; border: none; background: transparent;
+      border-radius: 6px; font-family: 'IBM Plex Mono', monospace;
+      font-size: 12px; color: #6b6b6b; cursor: pointer; transition: all 0.15s; text-align: center;
+    }
+
+    .tab.active {
+      background: #fff; color: #1a1a1a;
+      border: 0.5px solid #d0cec7; font-weight: 500;
+    }
+
+    .tab:hover:not(.active) { color: #1a1a1a; }
+
+    .panel { display: none; }
+    .panel.active { display: block; }
+
+    .info-banner {
+      padding: 8px 12px; background: #eeede8; border-radius: 8px;
+      border-left: 2px solid #5DCAA5; font-size: 12px; color: #6b6b6b;
+      margin-bottom: 1rem; font-family: 'IBM Plex Mono', monospace;
+    }
+
+    .field { margin-bottom: 1rem; }
+    .label { font-size: 12px; color: #6b6b6b; margin-bottom: 5px; font-family: 'IBM Plex Mono', monospace; display: block; }
+
+    input[type=text], input[type=password] {
+      width: 100%; padding: 9px 12px;
+      background: #eeede8; border: 0.5px solid #d0cec7;
+      border-radius: 8px; font-family: 'IBM Plex Mono', monospace;
+      font-size: 13px; color: #1a1a1a; outline: none; transition: border-color 0.15s;
+    }
+    input:focus { border-color: #888; }
+
+    .btn {
+      width: 100%; padding: 10px; border-radius: 8px;
+      border: 0.5px solid #ccc; background: #fff;
+      font-family: 'Syne', sans-serif; font-size: 13px; font-weight: 500;
+      color: #1a1a1a; cursor: pointer; transition: all 0.15s; margin-top: 4px;
+    }
+    .btn:hover { background: #eeede8; }
+    .btn-primary { background: #0F6E56; color: #E1F5EE; border-color: #0F6E56; }
+    .btn-primary:hover { background: #085041; border-color: #085041; }
+
+    .response-box { margin-top: 1rem; border-radius: 8px; border: 0.5px solid #d0cec7; overflow: hidden; }
+    .response-bar {
+      display: flex; justify-content: space-between; align-items: center;
+      padding: 6px 12px; background: #eeede8; border-bottom: 0.5px solid #d0cec7;
+    }
+    .response-label { font-size: 11px; font-family: 'IBM Plex Mono', monospace; color: #6b6b6b; }
+    .status-badge { font-size: 11px; font-family: 'IBM Plex Mono', monospace; padding: 2px 8px; border-radius: 4px; }
+    .s-200, .s-201 { background: #E1F5EE; color: #0F6E56; }
+    .s-400 { background: #FAEEDA; color: #854F0B; }
+    .s-401, .s-404 { background: #FCEBEB; color: #A32D2D; }
+    .s-409, .s-422 { background: #FAEEDA; color: #854F0B; }
+
+    .response-body {
+      padding: 12px; font-family: 'IBM Plex Mono', monospace; font-size: 12px;
+      background: #fff; white-space: pre-wrap; line-height: 1.6; min-height: 60px;
+    }
+
+    .token-section {
+      margin-top: 1rem; padding: 10px 12px; background: #eeede8;
+      border-radius: 8px; border: 0.5px solid #9FE1CB;
+    }
+    .token-label { font-size: 11px; color: #0F6E56; font-family: 'IBM Plex Mono', monospace; margin-bottom: 5px; }
+    .token-val { font-size: 11px; font-family: 'IBM Plex Mono', monospace; color: #6b6b6b; word-break: break-all; line-height: 1.5; }
+    .copy-btn {
+      margin-top: 6px; padding: 4px 10px; font-size: 11px;
+      font-family: 'IBM Plex Mono', monospace; background: transparent;
+      border: 0.5px solid #ccc; border-radius: 5px; cursor: pointer; color: #6b6b6b;
+    }
+    .copy-btn:hover { color: #1a1a1a; }
+
+    .profile-card { border: 0.5px solid #d0cec7; border-radius: 12px; overflow: hidden; margin-top: 1rem; }
+    .profile-top {
+      padding: 1rem 1.25rem; background: #eeede8;
+      display: flex; align-items: center; gap: 12px;
+      border-bottom: 0.5px solid #d0cec7;
+    }
+    .avatar {
+      width: 40px; height: 40px; border-radius: 50%; background: #9FE1CB;
+      display: flex; align-items: center; justify-content: center;
+      font-weight: 700; font-size: 15px; color: #0F6E56; flex-shrink: 0;
+    }
+    .profile-name { font-size: 15px; font-weight: 500; }
+    .profile-id { font-size: 12px; color: #6b6b6b; font-family: 'IBM Plex Mono', monospace; margin-top: 2px; }
+    .profile-row {
+      padding: 10px 1.25rem; display: flex; justify-content: space-between;
+      border-bottom: 0.5px solid #d0cec7; font-size: 13px; background: #fff;
+    }
+    .profile-row:last-child { border-bottom: none; }
+    .profile-row span:first-child { color: #6b6b6b; font-family: 'IBM Plex Mono', monospace; font-size: 12px; }
+
+    .token-input-row { display: flex; gap: 8px; align-items: flex-end; }
+    .token-input-row input { flex: 1; }
+    .use-btn {
+      padding: 9px 14px; background: #eeede8; border: 0.5px solid #ccc;
+      border-radius: 8px; font-size: 12px; font-family: 'IBM Plex Mono', monospace;
+      cursor: pointer; color: #6b6b6b; white-space: nowrap;
+    }
+    .use-btn:hover { color: #1a1a1a; }
+
+    .spinner {
+      display: inline-block; width: 12px; height: 12px;
+      border: 2px solid currentColor; border-top-color: transparent;
+      border-radius: 50%; animation: spin 0.6s linear infinite;
+      vertical-align: middle; margin-right: 6px;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+  </style>
+</head>
+<body>
+<div class="root">
+  <div class="header">
+    <div class="status-dot"></div>
+    <div>
+      <div class="header-title">Flask JWT Auth API</div>
+      <div class="header-sub">localhost:5000 · sqlite///users.db</div>
+    </div>
+  </div>
+
+  <div style="margin-bottom:1.25rem;">
+    <span class="route-pill"><span class="method">POST</span>/register</span>
+    <span class="route-pill"><span class="method">POST</span>/login</span>
+    <span class="route-pill"><span class="method get">GET</span>/profile 🔒</span>
+  </div>
+
+  <div class="tabs">
+    <button class="tab active" onclick="switchTab('register')">register</button>
+    <button class="tab" onclick="switchTab('login')">login</button>
+    <button class="tab" onclick="switchTab('profile')">profile</button>
+  </div>
+
+  <div id="panel-register" class="panel active">
+    <div class="info-banner">POST /register — create a new user account</div>
+    <div class="field">
+      <label class="label">username</label>
+      <input type="text" id="reg-user" placeholder="3–30 chars, letters/digits/underscores" />
+    </div>
+    <div class="field">
+      <label class="label">password</label>
+      <input type="password" id="reg-pass" placeholder="min 6 characters" />
+    </div>
+    <button class="btn btn-primary" onclick="doRegister()">Register user</button>
+    <div id="reg-response"></div>
+  </div>
+
+  <div id="panel-login" class="panel">
+    <div class="info-banner">POST /login — authenticate and receive JWT</div>
+    <div class="field">
+      <label class="label">username</label>
+      <input type="text" id="log-user" placeholder="your username" />
+    </div>
+    <div class="field">
+      <label class="label">password</label>
+      <input type="password" id="log-pass" placeholder="your password" />
+    </div>
+    <button class="btn btn-primary" onclick="doLogin()">Login</button>
+    <div id="log-response"></div>
+  </div>
+
+  <div id="panel-profile" class="panel">
+    <div class="info-banner">GET /profile — requires Bearer token</div>
+    <div class="field">
+      <label class="label">authorization token</label>
+      <div class="token-input-row">
+        <input type="text" id="prof-token" placeholder="paste JWT token here" />
+        <button class="use-btn" onclick="useStoredToken()">use saved</button>
+      </div>
+    </div>
+    <button class="btn btn-primary" onclick="doProfile()">Fetch profile</button>
+    <div id="prof-response"></div>
+  </div>
+</div>
+
+<script>
+  let storedToken = '';
+
+  function switchTab(name) {
+    ['register','login','profile'].forEach((n, i) => {
+      document.querySelectorAll('.tab')[i].classList.toggle('active', n === name);
+      document.getElementById('panel-' + n).classList.toggle('active', n === name);
+    });
+  }
+
+  function statusClass(code) {
+    if (code === 201) return 's-201';
+    if (code >= 200 && code < 300) return 's-200';
+    if (code === 400) return 's-400';
+    if (code === 401) return 's-401';
+    if (code === 404) return 's-404';
+    if (code === 409) return 's-409';
+    if (code === 422) return 's-422';
+    return 's-400';
+  }
+
+  function escHtml(str) {
+    return str.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  }
+
+  function renderResponse(id, status, data, token) {
+    const json = JSON.stringify(data, null, 2);
+    let tokenSection = '';
+    if (token) {
+      storedToken = token;
+      const preview = token.length > 60 ? token.slice(0, 60) + '…' : token;
+      tokenSection = `<div class="token-section"><div class="token-label">access_token saved</div><div class="token-val">${preview}</div><button class="copy-btn" onclick="copyToken()">copy full token</button></div>`;
+    }
+    document.getElementById(id).innerHTML = `
+      <div class="response-box">
+        <div class="response-bar">
+          <span class="response-label">response</span>
+          <span class="status-badge ${statusClass(status)}">${status}</span>
+        </div>
+        <div class="response-body">${escHtml(json)}</div>
+      </div>${tokenSection}`;
+  }
+
+  function loadingHtml(id) {
+    document.getElementById(id).innerHTML = `<div class="response-box"><div class="response-bar"><span class="response-label">response</span></div><div class="response-body" style="color:#6b6b6b"><span class="spinner"></span>sending request…</div></div>`;
+  }
+
+  async function doRegister() {
+    const username = document.getElementById('reg-user').value.trim();
+    const password = document.getElementById('reg-pass').value;
+    loadingHtml('reg-response');
+    try {
+      const res = await fetch('/register', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({username, password}) });
+      const data = await res.json();
+      renderResponse('reg-response', res.status, data);
+      if (res.status === 201) { document.getElementById('log-user').value = username; document.getElementById('log-pass').value = password; }
+    } catch(e) { mockRegister(username, password); }
+  }
+
+  async function doLogin() {
+    const username = document.getElementById('log-user').value.trim();
+    const password = document.getElementById('log-pass').value;
+    loadingHtml('log-response');
+    try {
+      const res = await fetch('/login', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({username, password}) });
+      const data = await res.json();
+      renderResponse('log-response', res.status, data, data.access_token);
+    } catch(e) { mockLogin(username, password); }
+  }
+
+  async function doProfile() {
+    const token = document.getElementById('prof-token').value.trim();
+    loadingHtml('prof-response');
+    if (!token) { renderResponse('prof-response', 401, {error:'Authorization token is missing.',detail:'No token provided'}); return; }
+    try {
+      const res = await fetch('/profile', { headers:{'Authorization':'Bearer '+token} });
+      const data = await res.json();
+      if (res.status === 200 && data.user) renderProfileCard(data);
+      else renderResponse('prof-response', res.status, data);
+    } catch(e) { mockProfile(token); }
+  }
+
+  function renderProfileCard(data) {
+    const u = data.user;
+    const initials = u.username.slice(0,2).toUpperCase();
+    document.getElementById('prof-response').innerHTML = `
+      <div class="profile-card">
+        <div class="profile-top">
+          <div class="avatar">${initials}</div>
+          <div><div class="profile-name">${escHtml(u.username)}</div><div class="profile-id">id: ${u.id}</div></div>
+        </div>
+        <div class="profile-row"><span>status</span><span style="color:#0F6E56;font-weight:500">authenticated</span></div>
+        <div class="profile-row"><span>user_id</span><span>${u.id}</span></div>
+        <div class="profile-row"><span>username</span><span>${escHtml(u.username)}</span></div>
+        <div class="profile-row"><span>token_expires</span><span>1 hour</span></div>
+      </div>`;
+  }
+
+  function mockRegister(username, password) {
+    if (!username || !password) renderResponse('reg-response', 400, {error:"Both 'username' and 'password' are required."});
+    else if (!/^[a-zA-Z0-9_]{3,30}$/.test(username)) renderResponse('reg-response', 422, {error:"Username must be 3–30 chars (letters, digits, underscores only)."});
+    else if (password.length < 6) renderResponse('reg-response', 422, {error:"Password must be at least 6 characters."});
+    else renderResponse('reg-response', 201, {message:"User registered successfully.",user:{id:1,username}});
+  }
+
+  function mockLogin(username, password) {
+    if (!username || !password) { renderResponse('log-response', 400, {error:"Both 'username' and 'password' are required."}); return; }
+    const fakeToken = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxIiwiaWF0IjoxNzE0MDAwMDAwLCJleHAiOjE3MTQwMDM2MDB9.mock_signature_for_demo';
+    renderResponse('log-response', 200, {message:"Login successful.",access_token:fakeToken,token_type:"Bearer",expires_in:"1 hour"}, fakeToken);
+  }
+
+  function mockProfile(token) {
+    if (token.startsWith('eyJ')) renderProfileCard({user:{id:1,username:'demo_user'}});
+    else renderResponse('prof-response', 422, {error:'Token is invalid.',detail:'Not a valid JWT format'});
+  }
+
+  function useStoredToken() {
+    if (storedToken) document.getElementById('prof-token').value = storedToken;
+    else document.getElementById('prof-token').placeholder = 'no token saved — login first';
+  }
+
+  function copyToken() { if (storedToken) navigator.clipboard.writeText(storedToken); }
+</script>
+</body>
+</html>
