@@ -1,0 +1,816 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Flask JWT Auth</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@300;400;500&family=Fraunces:ital,wght@0,300;0,500;0,700;1,300&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0b0c0e;
+    --surface: #131416;
+    --surface2: #1a1c1f;
+    --border: rgba(255,255,255,0.07);
+    --border2: rgba(255,255,255,0.12);
+    --text: #e8e6e0;
+    --muted: #6b6a66;
+    --accent: #b8f0d8;
+    --accent-dim: rgba(184,240,216,0.08);
+    --accent-border: rgba(184,240,216,0.2);
+    --danger: #f5a0a0;
+    --danger-dim: rgba(245,160,160,0.08);
+    --warn: #f5d08a;
+    --warn-dim: rgba(245,208,138,0.08);
+    --mono: 'DM Mono', monospace;
+    --serif: 'Fraunces', serif;
+  }
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--mono);
+    min-height: 100vh;
+    display: grid;
+    grid-template-columns: 260px 1fr;
+    grid-template-rows: auto 1fr;
+  }
+
+  /* ── Header ── */
+  header {
+    grid-column: 1/-1;
+    padding: 18px 28px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    background: var(--surface);
+  }
+
+  .logo {
+    font-family: var(--serif);
+    font-weight: 700;
+    font-size: 20px;
+    letter-spacing: -0.5px;
+    color: var(--text);
+  }
+
+  .logo span { color: var(--accent); font-style: italic; }
+
+  .live-badge {
+    display: flex; align-items: center; gap: 6px;
+    padding: 4px 10px;
+    background: var(--accent-dim);
+    border: 1px solid var(--accent-border);
+    border-radius: 20px;
+    font-size: 11px;
+    color: var(--accent);
+    margin-left: auto;
+  }
+
+  .live-dot {
+    width: 6px; height: 6px;
+    border-radius: 50%;
+    background: var(--accent);
+    animation: pulse 2s ease-in-out infinite;
+  }
+
+  @keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.3; }
+  }
+
+  .base-url {
+    font-size: 11px;
+    color: var(--muted);
+    padding: 4px 10px;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    margin-left: 8px;
+  }
+
+  /* ── Sidebar ── */
+  aside {
+    background: var(--surface);
+    border-right: 1px solid var(--border);
+    padding: 20px 0;
+  }
+
+  .nav-section {
+    padding: 0 16px;
+    margin-bottom: 4px;
+    font-size: 10px;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 1.5px;
+  }
+
+  .nav-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 16px;
+    cursor: pointer;
+    border-radius: 0;
+    transition: background 0.12s;
+    font-size: 13px;
+    color: var(--muted);
+    border-left: 2px solid transparent;
+    margin-bottom: 2px;
+  }
+
+  .nav-item:hover { background: var(--surface2); color: var(--text); }
+
+  .nav-item.active {
+    background: var(--accent-dim);
+    color: var(--accent);
+    border-left-color: var(--accent);
+  }
+
+  .method-tag {
+    font-size: 10px;
+    font-weight: 500;
+    padding: 2px 6px;
+    border-radius: 3px;
+    min-width: 36px;
+    text-align: center;
+  }
+
+  .post-tag { background: rgba(245,208,138,0.15); color: var(--warn); }
+  .get-tag  { background: var(--accent-dim); color: var(--accent); }
+
+  .nav-divider {
+    height: 1px;
+    background: var(--border);
+    margin: 12px 16px;
+  }
+
+  /* token stored indicator */
+  .token-indicator {
+    margin: 8px 16px 0;
+    padding: 8px 10px;
+    background: var(--accent-dim);
+    border: 1px solid var(--accent-border);
+    border-radius: 6px;
+    font-size: 11px;
+    color: var(--accent);
+    display: none;
+  }
+
+  .token-indicator.show { display: block; }
+
+  /* ── Main content ── */
+  main {
+    padding: 28px;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+  }
+
+  .panel { display: none; animation: fadeIn 0.2s ease; }
+  .panel.active { display: flex; flex-direction: column; gap: 20px; }
+
+  @keyframes fadeIn { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: translateY(0); } }
+
+  /* ── Panel header ── */
+  .panel-header {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+  }
+
+  .panel-method {
+    padding: 4px 10px;
+    border-radius: 4px;
+    font-size: 12px;
+    font-weight: 500;
+    margin-top: 2px;
+  }
+
+  .panel-title {
+    font-family: var(--serif);
+    font-size: 22px;
+    font-weight: 300;
+    color: var(--text);
+  }
+
+  .panel-route {
+    font-size: 12px;
+    color: var(--muted);
+    margin-top: 2px;
+  }
+
+  /* ── Form card ── */
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    overflow: hidden;
+  }
+
+  .card-header {
+    padding: 12px 16px;
+    border-bottom: 1px solid var(--border);
+    font-size: 11px;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 1px;
+  }
+
+  .card-body { padding: 16px; }
+
+  .field { margin-bottom: 14px; }
+  .field:last-child { margin-bottom: 0; }
+
+  label {
+    display: block;
+    font-size: 11px;
+    color: var(--muted);
+    margin-bottom: 6px;
+    letter-spacing: 0.5px;
+  }
+
+  input[type=text], input[type=password] {
+    width: 100%;
+    padding: 10px 12px;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    font-family: var(--mono);
+    font-size: 13px;
+    color: var(--text);
+    outline: none;
+    transition: border-color 0.15s;
+  }
+
+  input:focus { border-color: var(--accent-border); }
+  input::placeholder { color: var(--muted); }
+
+  .token-input-row { display: flex; gap: 8px; }
+  .token-input-row input { flex: 1; }
+
+  .use-saved-btn {
+    padding: 10px 14px;
+    background: var(--surface2);
+    border: 1px solid var(--border2);
+    border-radius: 6px;
+    font-size: 12px;
+    font-family: var(--mono);
+    cursor: pointer;
+    color: var(--muted);
+    white-space: nowrap;
+    transition: all 0.12s;
+  }
+  .use-saved-btn:hover { color: var(--accent); border-color: var(--accent-border); }
+
+  .submit-btn {
+    width: 100%;
+    padding: 11px;
+    background: var(--accent);
+    border: none;
+    border-radius: 6px;
+    font-family: var(--serif);
+    font-size: 15px;
+    font-weight: 500;
+    color: #0b2018;
+    cursor: pointer;
+    transition: all 0.15s;
+    margin-top: 4px;
+    letter-spacing: -0.2px;
+  }
+
+  .submit-btn:hover { background: #cdf5e3; }
+  .submit-btn:active { transform: scale(0.99); }
+
+  .submit-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+    transform: none;
+  }
+
+  /* ── Response box ── */
+  .response-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    overflow: hidden;
+  }
+
+  .response-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 10px 16px;
+    border-bottom: 1px solid var(--border);
+    background: var(--surface2);
+  }
+
+  .response-label { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 1px; }
+
+  .status-pill {
+    font-size: 11px;
+    font-weight: 500;
+    padding: 3px 10px;
+    border-radius: 20px;
+    font-family: var(--mono);
+  }
+
+  .s-2xx { background: var(--accent-dim); color: var(--accent); border: 1px solid var(--accent-border); }
+  .s-4xx { background: var(--danger-dim); color: var(--danger); border: 1px solid rgba(245,160,160,0.2); }
+  .s-5xx { background: var(--warn-dim); color: var(--warn); border: 1px solid rgba(245,208,138,0.2); }
+
+  .response-body {
+    padding: 16px;
+    font-size: 12px;
+    line-height: 1.8;
+    color: var(--text);
+    white-space: pre-wrap;
+    min-height: 80px;
+  }
+
+  .response-body.empty { color: var(--muted); font-style: italic; }
+
+  /* JSON syntax highlight */
+  .j-key   { color: #9fc8f0; }
+  .j-str   { color: #b8f0d8; }
+  .j-num   { color: #f5d08a; }
+  .j-bool  { color: #f5a0a0; }
+  .j-null  { color: var(--muted); }
+
+  /* ── Token saved section ── */
+  .token-saved {
+    background: var(--accent-dim);
+    border: 1px solid var(--accent-border);
+    border-radius: 8px;
+    padding: 12px 14px;
+    display: none;
+  }
+
+  .token-saved.show { display: block; }
+  .token-saved-label { font-size: 11px; color: var(--accent); margin-bottom: 6px; letter-spacing: 0.5px; }
+  .token-saved-val { font-size: 11px; color: var(--muted); word-break: break-all; line-height: 1.5; }
+
+  .copy-btn {
+    margin-top: 8px;
+    padding: 5px 12px;
+    font-size: 11px;
+    font-family: var(--mono);
+    background: transparent;
+    border: 1px solid var(--border2);
+    border-radius: 4px;
+    cursor: pointer;
+    color: var(--muted);
+    transition: all 0.12s;
+  }
+  .copy-btn:hover { color: var(--accent); border-color: var(--accent-border); }
+
+  /* ── Profile card ── */
+  .profile-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+  }
+
+  .profile-stat {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 14px;
+  }
+
+  .profile-stat-label { font-size: 11px; color: var(--muted); margin-bottom: 6px; }
+  .profile-stat-val { font-size: 16px; font-weight: 500; color: var(--text); }
+
+  .profile-avatar {
+    width: 52px; height: 52px;
+    border-radius: 50%;
+    background: var(--accent-dim);
+    border: 1px solid var(--accent-border);
+    display: flex; align-items: center; justify-content: center;
+    font-family: var(--serif);
+    font-size: 20px;
+    font-weight: 700;
+    color: var(--accent);
+    margin-bottom: 12px;
+  }
+
+  /* ── Loading ── */
+  .spinner {
+    display: inline-block;
+    width: 14px; height: 14px;
+    border: 2px solid var(--border2);
+    border-top-color: var(--accent);
+    border-radius: 50%;
+    animation: spin 0.6s linear infinite;
+    vertical-align: middle;
+    margin-right: 8px;
+  }
+
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* ── Welcome ── */
+  .welcome {
+    padding: 40px 0;
+    display: flex;
+    flex-direction: column;
+    gap: 24px;
+  }
+
+  .welcome-title {
+    font-family: var(--serif);
+    font-size: 36px;
+    font-weight: 300;
+    line-height: 1.2;
+    color: var(--text);
+  }
+
+  .welcome-title em { color: var(--accent); font-style: italic; }
+
+  .endpoint-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .endpoint-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 12px 14px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    cursor: pointer;
+    transition: all 0.12s;
+  }
+
+  .endpoint-row:hover {
+    border-color: var(--border2);
+    background: var(--surface2);
+  }
+
+  .endpoint-path { font-size: 13px; color: var(--text); }
+  .endpoint-desc { font-size: 12px; color: var(--muted); margin-left: auto; }
+
+  .lock-icon { font-size: 12px; color: var(--muted); }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">Flask <span>JWT</span> Auth</div>
+  <div class="base-url">expense-tracker-g30i.onrender.com</div>
+  <div class="live-badge"><div class="live-dot"></div> live</div>
+</header>
+
+<aside>
+  <div style="padding: 0 16px 12px; font-size: 10px; color: var(--muted); text-transform: uppercase; letter-spacing: 1.5px;">Endpoints</div>
+
+  <div class="nav-item active" onclick="show('home')">
+    <span class="method-tag" style="background:rgba(255,255,255,0.05);color:var(--muted)">GET</span>
+    / home
+  </div>
+
+  <div class="nav-divider"></div>
+
+  <div class="nav-item" onclick="show('register')">
+    <span class="method-tag post-tag">POST</span>
+    /register
+  </div>
+
+  <div class="nav-item" onclick="show('login')">
+    <span class="method-tag post-tag">POST</span>
+    /login
+  </div>
+
+  <div class="nav-divider"></div>
+
+  <div class="nav-item" onclick="show('profile')">
+    <span class="method-tag get-tag">GET</span>
+    /profile 🔒
+  </div>
+
+  <div class="token-indicator" id="token-indicator">
+    ✓ Token saved
+  </div>
+</aside>
+
+<main>
+  <!-- HOME -->
+  <div class="panel active" id="panel-home">
+    <div class="welcome">
+      <div class="welcome-title">Flask <em>JWT</em><br>Auth API</div>
+      <div style="font-size:13px; color:var(--muted); line-height:1.7; max-width:420px;">
+        Your API is live on Render. Use the sidebar to test each endpoint.
+        Register a user, login to get a JWT token, then access the protected profile route.
+      </div>
+      <div class="endpoint-list">
+        <div class="endpoint-row" onclick="show('register')">
+          <span class="method-tag post-tag">POST</span>
+          <span class="endpoint-path">/register</span>
+          <span class="endpoint-desc">Create new user</span>
+        </div>
+        <div class="endpoint-row" onclick="show('login')">
+          <span class="method-tag post-tag">POST</span>
+          <span class="endpoint-path">/login</span>
+          <span class="endpoint-desc">Get JWT token</span>
+        </div>
+        <div class="endpoint-row" onclick="show('profile')">
+          <span class="method-tag get-tag">GET</span>
+          <span class="endpoint-path">/profile</span>
+          <span class="endpoint-desc">Protected route <span class="lock-icon">🔒</span></span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- REGISTER -->
+  <div class="panel" id="panel-register">
+    <div class="panel-header">
+      <span class="panel-method post-tag method-tag">POST</span>
+      <div>
+        <div class="panel-title">Register</div>
+        <div class="panel-route">POST /register</div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header">Request body</div>
+      <div class="card-body">
+        <div class="field">
+          <label>username</label>
+          <input type="text" id="reg-user" placeholder="3–30 chars, letters/digits/underscores" />
+        </div>
+        <div class="field">
+          <label>password</label>
+          <input type="password" id="reg-pass" placeholder="minimum 6 characters" />
+        </div>
+        <button class="submit-btn" onclick="doRegister()" id="reg-btn">Register user</button>
+      </div>
+    </div>
+
+    <div class="response-card" id="reg-resp-card" style="display:none">
+      <div class="response-header">
+        <span class="response-label">Response</span>
+        <span class="status-pill" id="reg-status"></span>
+      </div>
+      <div class="response-body" id="reg-body"></div>
+    </div>
+  </div>
+
+  <!-- LOGIN -->
+  <div class="panel" id="panel-login">
+    <div class="panel-header">
+      <span class="panel-method post-tag method-tag">POST</span>
+      <div>
+        <div class="panel-title">Login</div>
+        <div class="panel-route">POST /login</div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header">Request body</div>
+      <div class="card-body">
+        <div class="field">
+          <label>username</label>
+          <input type="text" id="log-user" placeholder="your username" />
+        </div>
+        <div class="field">
+          <label>password</label>
+          <input type="password" id="log-pass" placeholder="your password" />
+        </div>
+        <button class="submit-btn" onclick="doLogin()" id="log-btn">Login &amp; get token</button>
+      </div>
+    </div>
+
+    <div class="token-saved" id="token-saved-box">
+      <div class="token-saved-label">ACCESS TOKEN SAVED</div>
+      <div class="token-saved-val" id="token-preview"></div>
+      <button class="copy-btn" onclick="copyToken()">copy full token</button>
+    </div>
+
+    <div class="response-card" id="log-resp-card" style="display:none">
+      <div class="response-header">
+        <span class="response-label">Response</span>
+        <span class="status-pill" id="log-status"></span>
+      </div>
+      <div class="response-body" id="log-body"></div>
+    </div>
+  </div>
+
+  <!-- PROFILE -->
+  <div class="panel" id="panel-profile">
+    <div class="panel-header">
+      <span class="panel-method get-tag method-tag">GET</span>
+      <div>
+        <div class="panel-title">Profile <span style="font-size:16px">🔒</span></div>
+        <div class="panel-route">GET /profile — requires Bearer token</div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header">Authorization</div>
+      <div class="card-body">
+        <div class="field">
+          <label>bearer token</label>
+          <div class="token-input-row">
+            <input type="text" id="prof-token" placeholder="paste JWT token or click use saved" />
+            <button class="use-saved-btn" onclick="useSavedToken()">use saved</button>
+          </div>
+        </div>
+        <button class="submit-btn" onclick="doProfile()" id="prof-btn">Fetch profile</button>
+      </div>
+    </div>
+
+    <div id="profile-result"></div>
+
+    <div class="response-card" id="prof-resp-card" style="display:none">
+      <div class="response-header">
+        <span class="response-label">Response</span>
+        <span class="status-pill" id="prof-status"></span>
+      </div>
+      <div class="response-body" id="prof-body"></div>
+    </div>
+  </div>
+</main>
+
+<script>
+  const BASE = 'https://expense-tracker-g30i.onrender.com';
+  let savedToken = '';
+
+  function show(name) {
+    document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+    document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+    document.getElementById('panel-' + name).classList.add('active');
+    event.currentTarget.classList.add('active');
+  }
+
+  function highlight(json) {
+    return JSON.stringify(json, null, 2)
+      .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+      .replace(/"([^"]+)":/g, '<span class="j-key">"$1"</span>:')
+      .replace(/: "([^"]*)"/g, ': <span class="j-str">"$1"</span>')
+      .replace(/: (\d+\.?\d*)/g, ': <span class="j-num">$1</span>')
+      .replace(/: (true|false)/g, ': <span class="j-bool">$1</span>')
+      .replace(/: null/g, ': <span class="j-null">null</span>');
+  }
+
+  function setStatus(el, code) {
+    const cls = code >= 500 ? 's-5xx' : code >= 400 ? 's-4xx' : 's-2xx';
+    el.className = 'status-pill ' + cls;
+    el.textContent = code;
+  }
+
+  function setLoading(btnId, loading) {
+    const btn = document.getElementById(btnId);
+    btn.disabled = loading;
+    btn.innerHTML = loading ? '<span class="spinner"></span>Sending…' : btn.dataset.label || btn.innerHTML;
+  }
+
+  async function doRegister() {
+    const username = document.getElementById('reg-user').value.trim();
+    const password = document.getElementById('reg-pass').value;
+    document.getElementById('reg-btn').dataset.label = 'Register user';
+    setLoading('reg-btn', true);
+
+    try {
+      const res = await fetch(BASE + '/register', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username, password })
+      });
+      const data = await res.json();
+      document.getElementById('reg-resp-card').style.display = 'block';
+      setStatus(document.getElementById('reg-status'), res.status);
+      document.getElementById('reg-body').innerHTML = highlight(data);
+      if (res.status === 201) {
+        document.getElementById('log-user').value = username;
+        document.getElementById('log-pass').value = password;
+      }
+    } catch(e) {
+      document.getElementById('reg-resp-card').style.display = 'block';
+      document.getElementById('reg-status').className = 'status-pill s-4xx';
+      document.getElementById('reg-status').textContent = 'ERR';
+      document.getElementById('reg-body').textContent = 'Network error: ' + e.message;
+    }
+    setLoading('reg-btn', false);
+    document.getElementById('reg-btn').textContent = 'Register user';
+  }
+
+  async function doLogin() {
+    const username = document.getElementById('log-user').value.trim();
+    const password = document.getElementById('log-pass').value;
+    document.getElementById('log-btn').dataset.label = 'Login & get token';
+    setLoading('log-btn', true);
+
+    try {
+      const res = await fetch(BASE + '/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username, password })
+      });
+      const data = await res.json();
+      document.getElementById('log-resp-card').style.display = 'block';
+      setStatus(document.getElementById('log-status'), res.status);
+      document.getElementById('log-body').innerHTML = highlight(data);
+
+      if (data.access_token) {
+        savedToken = data.access_token;
+        document.getElementById('token-preview').textContent = savedToken.slice(0, 80) + '…';
+        document.getElementById('token-saved-box').classList.add('show');
+        document.getElementById('token-indicator').classList.add('show');
+        document.getElementById('prof-token').value = savedToken;
+      }
+    } catch(e) {
+      document.getElementById('log-resp-card').style.display = 'block';
+      document.getElementById('log-status').className = 'status-pill s-4xx';
+      document.getElementById('log-status').textContent = 'ERR';
+      document.getElementById('log-body').textContent = 'Network error: ' + e.message;
+    }
+    setLoading('log-btn', false);
+    document.getElementById('log-btn').innerHTML = 'Login &amp; get token';
+  }
+
+  async function doProfile() {
+    const token = document.getElementById('prof-token').value.trim();
+    document.getElementById('prof-btn').dataset.label = 'Fetch profile';
+    setLoading('prof-btn', true);
+    document.getElementById('profile-result').innerHTML = '';
+
+    if (!token) {
+      document.getElementById('prof-resp-card').style.display = 'block';
+      setStatus(document.getElementById('prof-status'), 401);
+      document.getElementById('prof-body').textContent = JSON.stringify({ error: 'Authorization token is missing.' }, null, 2);
+      setLoading('prof-btn', false);
+      document.getElementById('prof-btn').textContent = 'Fetch profile';
+      return;
+    }
+
+    try {
+      const res = await fetch(BASE + '/profile', {
+        headers: { 'Authorization': 'Bearer ' + token }
+      });
+      const data = await res.json();
+
+      if (res.status === 200 && data.user) {
+        const u = data.user;
+        const initials = u.username.slice(0, 2).toUpperCase();
+        document.getElementById('profile-result').innerHTML = `
+          <div class="card">
+            <div class="card-header">User profile</div>
+            <div class="card-body">
+              <div class="profile-avatar">${initials}</div>
+              <div class="profile-grid">
+                <div class="profile-stat">
+                  <div class="profile-stat-label">user id</div>
+                  <div class="profile-stat-val">${u.id}</div>
+                </div>
+                <div class="profile-stat">
+                  <div class="profile-stat-label">username</div>
+                  <div class="profile-stat-val">${u.username}</div>
+                </div>
+                <div class="profile-stat" style="grid-column:1/-1">
+                  <div class="profile-stat-label">status</div>
+                  <div class="profile-stat-val" style="color:var(--accent)">authenticated</div>
+                </div>
+              </div>
+            </div>
+          </div>`;
+        document.getElementById('prof-resp-card').style.display = 'none';
+      } else {
+        document.getElementById('prof-resp-card').style.display = 'block';
+        setStatus(document.getElementById('prof-status'), res.status);
+        document.getElementById('prof-body').innerHTML = highlight(data);
+      }
+    } catch(e) {
+      document.getElementById('prof-resp-card').style.display = 'block';
+      document.getElementById('prof-status').className = 'status-pill s-4xx';
+      document.getElementById('prof-status').textContent = 'ERR';
+      document.getElementById('prof-body').textContent = 'Network error: ' + e.message;
+    }
+    setLoading('prof-btn', false);
+    document.getElementById('prof-btn').textContent = 'Fetch profile';
+  }
+
+  function useSavedToken() {
+    if (savedToken) {
+      document.getElementById('prof-token').value = savedToken;
+    } else {
+      document.getElementById('prof-token').placeholder = 'no token saved — login first';
+    }
+  }
+
+  function copyToken() {
+    if (savedToken) {
+      navigator.clipboard.writeText(savedToken);
+      event.target.textContent = 'copied!';
+      setTimeout(() => event.target.textContent = 'copy full token', 2000);
+    }
+  }
+</script>
+</body>
+</html>
