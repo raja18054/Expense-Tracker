@@ -1,0 +1,390 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Flask JWT Auth</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@300;400;500&family=Fraunces:ital,wght@0,300;0,500;0,700;1,300&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0b0c0e;
+    --surface: #131416;
+    --surface2: #1a1c1f;
+    --border: rgba(255,255,255,0.07);
+    --border2: rgba(255,255,255,0.12);
+    --text: #e8e6e0;
+    --muted: #6b6a66;
+    --accent: #b8f0d8;
+    --accent-dim: rgba(184,240,216,0.08);
+    --accent-border: rgba(184,240,216,0.2);
+    --danger: #f5a0a0;
+    --danger-dim: rgba(245,160,160,0.08);
+    --warn: #f5d08a;
+    --warn-dim: rgba(245,208,138,0.08);
+    --mono: 'DM Mono', monospace;
+    --serif: 'Fraunces', serif;
+  }
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--mono);
+    min-height: 100vh;
+    display: grid;
+    grid-template-columns: 250px 1fr;
+    grid-template-rows: auto 1fr;
+  }
+  header {
+    grid-column: 1/-1;
+    padding: 16px 24px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    background: var(--surface);
+  }
+  .logo { font-family: var(--serif); font-weight: 700; font-size: 19px; color: var(--text); }
+  .logo span { color: var(--accent); font-style: italic; }
+  .base-url { font-size: 11px; color: var(--muted); padding: 3px 9px; background: var(--surface2); border: 1px solid var(--border); border-radius: 4px; }
+  .live-badge { display: flex; align-items: center; gap: 6px; padding: 4px 10px; background: var(--accent-dim); border: 1px solid var(--accent-border); border-radius: 20px; font-size: 11px; color: var(--accent); margin-left: auto; }
+  .live-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--accent); animation: pulse 2s ease-in-out infinite; }
+  @keyframes pulse { 0%,100%{opacity:1}50%{opacity:0.3} }
+
+  aside { background: var(--surface); border-right: 1px solid var(--border); padding: 20px 0; }
+  .nav-label { padding: 0 16px 10px; font-size: 10px; color: var(--muted); text-transform: uppercase; letter-spacing: 1.5px; }
+  .nav-item { display: flex; align-items: center; gap: 10px; padding: 10px 16px; cursor: pointer; font-size: 13px; color: var(--muted); border-left: 2px solid transparent; transition: all 0.12s; }
+  .nav-item:hover { background: var(--surface2); color: var(--text); }
+  .nav-item.active { background: var(--accent-dim); color: var(--accent); border-left-color: var(--accent); }
+  .nav-divider { height: 1px; background: var(--border); margin: 10px 16px; }
+  .method-tag { font-size: 10px; font-weight: 500; padding: 2px 6px; border-radius: 3px; min-width: 36px; text-align: center; }
+  .post-tag { background: rgba(245,208,138,0.12); color: var(--warn); }
+  .get-tag  { background: var(--accent-dim); color: var(--accent); }
+  .tok-saved-side { margin: 10px 16px 0; padding: 8px 10px; background: var(--accent-dim); border: 1px solid var(--accent-border); border-radius: 6px; font-size: 11px; color: var(--accent); display: none; }
+  .tok-saved-side.show { display: block; }
+
+  main { padding: 28px; overflow-y: auto; }
+  .panel { display: none; flex-direction: column; gap: 20px; animation: fadeIn 0.18s ease; }
+  .panel.active { display: flex; }
+  @keyframes fadeIn { from{opacity:0;transform:translateY(4px)} to{opacity:1;transform:translateY(0)} }
+
+  .panel-header { display: flex; align-items: flex-start; gap: 12px; }
+  .panel-method { padding: 4px 10px; border-radius: 4px; font-size: 12px; font-weight: 500; margin-top: 3px; }
+  .panel-title { font-family: var(--serif); font-size: 22px; font-weight: 300; }
+  .panel-route { font-size: 12px; color: var(--muted); margin-top: 2px; }
+
+  .card { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; overflow: hidden; }
+  .card-header { padding: 11px 16px; border-bottom: 1px solid var(--border); font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 1px; }
+  .card-body { padding: 16px; }
+
+  .field { margin-bottom: 14px; }
+  .field:last-child { margin-bottom: 0; }
+  label { display: block; font-size: 11px; color: var(--muted); margin-bottom: 6px; letter-spacing: 0.4px; }
+  input[type=text], input[type=password] { width: 100%; padding: 10px 12px; background: var(--surface2); border: 1px solid var(--border); border-radius: 6px; font-family: var(--mono); font-size: 13px; color: var(--text); outline: none; transition: border-color 0.15s; }
+  input:focus { border-color: var(--accent-border); }
+  input::placeholder { color: var(--muted); }
+  .tok-row { display: flex; gap: 8px; }
+  .tok-row input { flex: 1; }
+  .use-saved { padding: 10px 14px; background: var(--surface2); border: 1px solid var(--border2); border-radius: 6px; font-size: 12px; font-family: var(--mono); cursor: pointer; color: var(--muted); white-space: nowrap; transition: all 0.12s; }
+  .use-saved:hover { color: var(--accent); border-color: var(--accent-border); }
+
+  .submit-btn { width: 100%; padding: 11px; background: var(--accent); border: none; border-radius: 6px; font-family: var(--serif); font-size: 15px; font-weight: 500; color: #0b2018; cursor: pointer; transition: all 0.15s; margin-top: 4px; letter-spacing: -0.2px; }
+  .submit-btn:hover { background: #cdf5e3; }
+  .submit-btn:active { transform: scale(0.99); }
+  .submit-btn:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
+
+  .resp-card { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; overflow: hidden; display: none; }
+  .resp-header { display: flex; justify-content: space-between; align-items: center; padding: 10px 16px; border-bottom: 1px solid var(--border); background: var(--surface2); }
+  .resp-label { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 1px; }
+  .status-pill { font-size: 11px; font-weight: 500; padding: 3px 10px; border-radius: 20px; font-family: var(--mono); }
+  .s-2xx { background: var(--accent-dim); color: var(--accent); border: 1px solid var(--accent-border); }
+  .s-4xx { background: var(--danger-dim); color: var(--danger); border: 1px solid rgba(245,160,160,0.2); }
+  .resp-body { padding: 16px; font-size: 12px; line-height: 1.8; color: var(--text); white-space: pre-wrap; min-height: 70px; }
+  .j-key{color:#9fc8f0}.j-str{color:#b8f0d8}.j-num{color:#f5d08a}.j-bool{color:#f5a0a0}.j-null{color:var(--muted)}
+
+  .tok-box { background: var(--accent-dim); border: 1px solid var(--accent-border); border-radius: 8px; padding: 12px 14px; display: none; }
+  .tok-box.show { display: block; }
+  .tok-box-label { font-size: 11px; color: var(--accent); margin-bottom: 6px; }
+  .tok-box-val { font-size: 11px; color: var(--muted); word-break: break-all; line-height: 1.5; }
+  .copy-btn { margin-top: 8px; padding: 5px 12px; font-size: 11px; font-family: var(--mono); background: transparent; border: 1px solid var(--border2); border-radius: 4px; cursor: pointer; color: var(--muted); transition: all 0.12s; }
+  .copy-btn:hover { color: var(--accent); border-color: var(--accent-border); }
+
+  .profile-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .profile-stat { background: var(--surface2); border: 1px solid var(--border); border-radius: 8px; padding: 14px; }
+  .profile-stat-label { font-size: 11px; color: var(--muted); margin-bottom: 6px; }
+  .profile-stat-val { font-size: 16px; font-weight: 500; color: var(--text); }
+  .profile-avatar { width: 52px; height: 52px; border-radius: 50%; background: var(--accent-dim); border: 1px solid var(--accent-border); display: flex; align-items: center; justify-content: center; font-family: var(--serif); font-size: 20px; font-weight: 700; color: var(--accent); margin-bottom: 14px; }
+
+  .spinner { display: inline-block; width: 13px; height: 13px; border: 2px solid var(--border2); border-top-color: var(--accent); border-radius: 50%; animation: spin 0.6s linear infinite; vertical-align: middle; margin-right: 8px; }
+  @keyframes spin { to{transform:rotate(360deg)} }
+
+  /* Welcome */
+  .welcome-title { font-family: var(--serif); font-size: 34px; font-weight: 300; line-height: 1.2; }
+  .welcome-title em { color: var(--accent); font-style: italic; }
+  .welcome-desc { font-size: 13px; color: var(--muted); line-height: 1.7; max-width: 400px; }
+  .ep-row { display: flex; align-items: center; gap: 10px; padding: 12px 14px; background: var(--surface); border: 1px solid var(--border); border-radius: 8px; cursor: pointer; transition: all 0.12s; margin-bottom: 8px; }
+  .ep-row:hover { border-color: var(--border2); background: var(--surface2); }
+  .ep-path { font-size: 13px; color: var(--text); }
+  .ep-desc { font-size: 12px; color: var(--muted); margin-left: auto; }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">Flask <span>JWT</span></div>
+  <div class="base-url" id="base-url-label"></div>
+  <div class="live-badge"><div class="live-dot"></div> live</div>
+</header>
+
+<aside>
+  <div class="nav-label">Endpoints</div>
+  <div class="nav-item active" id="nav-home" onclick="show('home', this)">
+    <span class="method-tag" style="background:rgba(255,255,255,0.05);color:var(--muted)">GET</span> home
+  </div>
+  <div class="nav-divider"></div>
+  <div class="nav-item" id="nav-register" onclick="show('register', this)">
+    <span class="method-tag post-tag">POST</span> /register
+  </div>
+  <div class="nav-item" id="nav-login" onclick="show('login', this)">
+    <span class="method-tag post-tag">POST</span> /login
+  </div>
+  <div class="nav-divider"></div>
+  <div class="nav-item" id="nav-profile" onclick="show('profile', this)">
+    <span class="method-tag get-tag">GET</span> /profile 🔒
+  </div>
+  <div class="tok-saved-side" id="tok-side">✓ Token saved</div>
+</aside>
+
+<main>
+
+  <!-- HOME -->
+  <div class="panel active" id="panel-home">
+    <div style="padding: 32px 0; display:flex; flex-direction:column; gap:20px;">
+      <div class="welcome-title">Flask <em>JWT</em><br>Auth API</div>
+      <div class="welcome-desc">Your API is live. Register a user, login to receive a JWT token, then access the protected profile route.</div>
+      <div>
+        <div class="ep-row" onclick="show('register', document.getElementById('nav-register'))">
+          <span class="method-tag post-tag">POST</span>
+          <span class="ep-path">/register</span>
+          <span class="ep-desc">Create new user</span>
+        </div>
+        <div class="ep-row" onclick="show('login', document.getElementById('nav-login'))">
+          <span class="method-tag post-tag">POST</span>
+          <span class="ep-path">/login</span>
+          <span class="ep-desc">Get JWT token</span>
+        </div>
+        <div class="ep-row" onclick="show('profile', document.getElementById('nav-profile'))">
+          <span class="method-tag get-tag">GET</span>
+          <span class="ep-path">/profile</span>
+          <span class="ep-desc">Protected 🔒</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- REGISTER -->
+  <div class="panel" id="panel-register">
+    <div class="panel-header">
+      <span class="panel-method post-tag method-tag">POST</span>
+      <div><div class="panel-title">Register</div><div class="panel-route">POST /register</div></div>
+    </div>
+    <div class="card">
+      <div class="card-header">Request body — JSON</div>
+      <div class="card-body">
+        <div class="field"><label>username</label><input type="text" id="reg-user" placeholder="3–30 chars, letters/digits/underscores"/></div>
+        <div class="field"><label>password</label><input type="password" id="reg-pass" placeholder="minimum 6 characters"/></div>
+        <button class="submit-btn" id="reg-btn" onclick="doRegister()">Register user</button>
+      </div>
+    </div>
+    <div class="resp-card" id="reg-rc">
+      <div class="resp-header"><span class="resp-label">Response</span><span class="status-pill" id="reg-st"></span></div>
+      <div class="resp-body" id="reg-body"></div>
+    </div>
+  </div>
+
+  <!-- LOGIN -->
+  <div class="panel" id="panel-login">
+    <div class="panel-header">
+      <span class="panel-method post-tag method-tag">POST</span>
+      <div><div class="panel-title">Login</div><div class="panel-route">POST /login</div></div>
+    </div>
+    <div class="card">
+      <div class="card-header">Request body — JSON</div>
+      <div class="card-body">
+        <div class="field"><label>username</label><input type="text" id="log-user" placeholder="your username"/></div>
+        <div class="field"><label>password</label><input type="password" id="log-pass" placeholder="your password"/></div>
+        <button class="submit-btn" id="log-btn" onclick="doLogin()">Login &amp; get token</button>
+      </div>
+    </div>
+    <div class="tok-box" id="tok-box">
+      <div class="tok-box-label">ACCESS TOKEN SAVED</div>
+      <div class="tok-box-val" id="tok-preview"></div>
+      <button class="copy-btn" onclick="copyTok()">copy full token</button>
+    </div>
+    <div class="resp-card" id="log-rc">
+      <div class="resp-header"><span class="resp-label">Response</span><span class="status-pill" id="log-st"></span></div>
+      <div class="resp-body" id="log-body"></div>
+    </div>
+  </div>
+
+  <!-- PROFILE -->
+  <div class="panel" id="panel-profile">
+    <div class="panel-header">
+      <span class="panel-method get-tag method-tag">GET</span>
+      <div><div class="panel-title">Profile 🔒</div><div class="panel-route">GET /profile — Bearer token required</div></div>
+    </div>
+    <div class="card">
+      <div class="card-header">Authorization header</div>
+      <div class="card-body">
+        <div class="field">
+          <label>bearer token</label>
+          <div class="tok-row">
+            <input type="text" id="prof-tok" placeholder="paste token or click use saved"/>
+            <button class="use-saved" onclick="useSaved()">use saved</button>
+          </div>
+        </div>
+        <button class="submit-btn" id="prof-btn" onclick="doProfile()">Fetch profile</button>
+      </div>
+    </div>
+    <div id="profile-result"></div>
+    <div class="resp-card" id="prof-rc">
+      <div class="resp-header"><span class="resp-label">Response</span><span class="status-pill" id="prof-st"></span></div>
+      <div class="resp-body" id="prof-body"></div>
+    </div>
+  </div>
+
+</main>
+
+<script>
+  const BASE = window.location.origin;
+  document.getElementById('base-url-label').textContent = window.location.host;
+  let savedTok = '';
+
+  function show(name, navEl) {
+    document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+    document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+    document.getElementById('panel-' + name).classList.add('active');
+    if (navEl) navEl.classList.add('active');
+  }
+
+  function hl(json) {
+    return JSON.stringify(json, null, 2)
+      .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+      .replace(/"([^"]+)":/g,'<span class="j-key">"$1"</span>:')
+      .replace(/: "([^"]*)"/g,': <span class="j-str">"$1"</span>')
+      .replace(/: (\d+\.?\d*)/g,': <span class="j-num">$1</span>')
+      .replace(/: (true|false)/g,': <span class="j-bool">$1</span>')
+      .replace(/: null/g,': <span class="j-null">null</span>');
+  }
+
+  function setSt(el, code) {
+    el.className = 'status-pill ' + (code >= 400 ? 's-4xx' : 's-2xx');
+    el.textContent = code;
+  }
+
+  function spin(id, on, label) {
+    const b = document.getElementById(id);
+    b.disabled = on;
+    b.innerHTML = on ? '<span class="spinner"></span>Sending…' : label;
+  }
+
+  async function doRegister() {
+    const u = document.getElementById('reg-user').value.trim();
+    const p = document.getElementById('reg-pass').value;
+    spin('reg-btn', true);
+    try {
+      const r = await fetch(BASE + '/register', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({username:u,password:p}) });
+      const d = await r.json();
+      document.getElementById('reg-rc').style.display = 'block';
+      setSt(document.getElementById('reg-st'), r.status);
+      document.getElementById('reg-body').innerHTML = hl(d);
+      if (r.status === 201) { document.getElementById('log-user').value = u; document.getElementById('log-pass').value = p; }
+    } catch(e) {
+      document.getElementById('reg-rc').style.display = 'block';
+      document.getElementById('reg-st').className = 'status-pill s-4xx';
+      document.getElementById('reg-st').textContent = 'ERR';
+      document.getElementById('reg-body').textContent = 'Network error: ' + e.message;
+    }
+    spin('reg-btn', false, 'Register user');
+  }
+
+  async function doLogin() {
+    const u = document.getElementById('log-user').value.trim();
+    const p = document.getElementById('log-pass').value;
+    spin('log-btn', true);
+    try {
+      const r = await fetch(BASE + '/login', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({username:u,password:p}) });
+      const d = await r.json();
+      document.getElementById('log-rc').style.display = 'block';
+      setSt(document.getElementById('log-st'), r.status);
+      document.getElementById('log-body').innerHTML = hl(d);
+      if (d.access_token) {
+        savedTok = d.access_token;
+        document.getElementById('tok-preview').textContent = savedTok.slice(0,80) + '…';
+        document.getElementById('tok-box').classList.add('show');
+        document.getElementById('tok-side').classList.add('show');
+        document.getElementById('prof-tok').value = savedTok;
+      }
+    } catch(e) {
+      document.getElementById('log-rc').style.display = 'block';
+      document.getElementById('log-st').className = 'status-pill s-4xx';
+      document.getElementById('log-st').textContent = 'ERR';
+      document.getElementById('log-body').textContent = 'Network error: ' + e.message;
+    }
+    spin('log-btn', false, 'Login &amp; get token');
+  }
+
+  async function doProfile() {
+    const tok = document.getElementById('prof-tok').value.trim();
+    spin('prof-btn', true);
+    document.getElementById('profile-result').innerHTML = '';
+    document.getElementById('prof-rc').style.display = 'none';
+    if (!tok) {
+      document.getElementById('prof-rc').style.display = 'block';
+      setSt(document.getElementById('prof-st'), 401);
+      document.getElementById('prof-body').textContent = JSON.stringify({error:'Authorization token is missing.'},null,2);
+      spin('prof-btn', false, 'Fetch profile'); return;
+    }
+    try {
+      const r = await fetch(BASE + '/profile', { headers:{'Authorization':'Bearer '+tok} });
+      const d = await r.json();
+      if (r.status === 200 && d.user) {
+        const u = d.user;
+        const ini = u.username.slice(0,2).toUpperCase();
+        document.getElementById('profile-result').innerHTML = `
+          <div class="card">
+            <div class="card-header">Authenticated user</div>
+            <div class="card-body">
+              <div class="profile-avatar">${ini}</div>
+              <div class="profile-grid">
+                <div class="profile-stat"><div class="profile-stat-label">user id</div><div class="profile-stat-val">${u.id}</div></div>
+                <div class="profile-stat"><div class="profile-stat-label">username</div><div class="profile-stat-val">${u.username}</div></div>
+                <div class="profile-stat" style="grid-column:1/-1"><div class="profile-stat-label">status</div><div class="profile-stat-val" style="color:var(--accent)">authenticated ✓</div></div>
+              </div>
+            </div>
+          </div>`;
+      } else {
+        document.getElementById('prof-rc').style.display = 'block';
+        setSt(document.getElementById('prof-st'), r.status);
+        document.getElementById('prof-body').innerHTML = hl(d);
+      }
+    } catch(e) {
+      document.getElementById('prof-rc').style.display = 'block';
+      document.getElementById('prof-st').className = 'status-pill s-4xx';
+      document.getElementById('prof-st').textContent = 'ERR';
+      document.getElementById('prof-body').textContent = 'Network error: ' + e.message;
+    }
+    spin('prof-btn', false, 'Fetch profile');
+  }
+
+  function useSaved() {
+    if (savedTok) document.getElementById('prof-tok').value = savedTok;
+    else document.getElementById('prof-tok').placeholder = 'no token yet — login first';
+  }
+
+  function copyTok() {
+    if (savedTok) { navigator.clipboard.writeText(savedTok); event.target.textContent='copied!'; setTimeout(()=>event.target.textContent='copy full token',2000); }
+  }
+</script>
+</body>
+</html>
