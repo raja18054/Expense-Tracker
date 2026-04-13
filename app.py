@@ -5,19 +5,21 @@
 #              login, generate JWT tokens, and access protected routes.
 # ============================================================
 
-from flask import Flask, request, jsonify
+from flask import Flask, request, jsonify, send_from_directory
 from flask_sqlalchemy import SQLAlchemy
 from flask_jwt_extended import (
     JWTManager, create_access_token,
     jwt_required, get_jwt_identity
 )
+from flask_cors import CORS
 from werkzeug.security import generate_password_hash, check_password_hash
 from datetime import timedelta
 import os
 import re
 
 # ─── App Initialization ───────────────────────────────────────
-app = Flask(__name__)
+app = Flask(__name__, static_folder="static")
+CORS(app)  # Enable CORS for frontend
 
 # ─── Configuration ────────────────────────────────────────────
 app.config["SQLALCHEMY_DATABASE_URI"] = "sqlite:///users.db"
@@ -25,7 +27,7 @@ app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
 
 # JWT secret key – in production, set via environment variable
 app.config["JWT_SECRET_KEY"] = os.environ.get("JWT_SECRET_KEY", "change-this-super-secret-key-in-production")
-app.config["JWT_ACCESS_TOKEN_EXPIRES"] = timedelta(hours=1)  # Token expires in 1 hour
+app.config["JWT_ACCESS_TOKEN_EXPIRES"] = timedelta(hours=1)
 
 # ─── Extensions ───────────────────────────────────────────────
 db = SQLAlchemy(app)
@@ -36,7 +38,7 @@ class User(db.Model):
     """User model – stores id, username, and hashed password."""
     id       = db.Column(db.Integer, primary_key=True)
     username = db.Column(db.String(80), unique=True, nullable=False)
-    password = db.Column(db.String(200), nullable=False)  # stores hashed password
+    password = db.Column(db.String(200), nullable=False)
 
     def to_dict(self):
         """Return a safe dict (never expose password)."""
@@ -51,32 +53,18 @@ def is_valid_password(password: str) -> bool:
     """Password: minimum 6 characters."""
     return len(password) >= 6
 
-# ─── Routes ───────────────────────────────────────────────────
-
+# ─── Serve Frontend ───────────────────────────────────────────
 @app.route("/", methods=["GET"])
 def index():
-    """Health-check / welcome endpoint."""
-    return jsonify({
-        "status":  "online",
-        "message": "Flask JWT Auth API is running.",
-        "endpoints": {
-            "register": "POST /register",
-            "login":    "POST /login",
-            "profile":  "GET  /profile  (protected – requires Bearer token)"
-        }
-    }), 200
+    """Serve the frontend UI."""
+    return send_from_directory("static", "index.html")
 
+# ─── Routes ───────────────────────────────────────────────────
 
 @app.route("/register", methods=["POST"])
 def register():
-    """
-    POST /register
-    Body: { "username": "...", "password": "..." }
-    Creates a new user with a hashed password.
-    """
     data = request.get_json(silent=True)
 
-    # ── Validate payload ──
     if not data:
         return jsonify({"error": "Request body must be JSON."}), 400
 
@@ -92,12 +80,10 @@ def register():
     if not is_valid_password(password):
         return jsonify({"error": "Password must be at least 6 characters."}), 422
 
-    # ── Check for duplicate username ──
     if User.query.filter_by(username=username).first():
         return jsonify({"error": "Username already taken."}), 409
 
-    # ── Hash password & save user ──
-    hashed_pw = generate_password_hash(password)          # bcrypt-like via werkzeug
+    hashed_pw = generate_password_hash(password)
     new_user  = User(username=username, password=hashed_pw)
     db.session.add(new_user)
     db.session.commit()
@@ -110,11 +96,6 @@ def register():
 
 @app.route("/login", methods=["POST"])
 def login():
-    """
-    POST /login
-    Body: { "username": "...", "password": "..." }
-    Validates credentials and returns a JWT access token.
-    """
     data = request.get_json(silent=True)
 
     if not data:
@@ -126,14 +107,11 @@ def login():
     if not username or not password:
         return jsonify({"error": "Both 'username' and 'password' are required."}), 400
 
-    # ── Fetch user & verify password ──
     user = User.query.filter_by(username=username).first()
 
     if not user or not check_password_hash(user.password, password):
-        # Intentionally vague to prevent username enumeration
         return jsonify({"error": "Invalid username or password."}), 401
 
-    # ── Issue JWT ──
     access_token = create_access_token(identity=str(user.id))
 
     return jsonify({
@@ -145,14 +123,9 @@ def login():
 
 
 @app.route("/profile", methods=["GET"])
-@jwt_required()                           # 🔒 Protected – valid JWT required
+@jwt_required()
 def profile():
-    """
-    GET /profile
-    Header: Authorization: Bearer <token>
-    Returns the authenticated user's profile data.
-    """
-    current_user_id = get_jwt_identity()  # extracted from JWT payload
+    current_user_id = get_jwt_identity()
     user = User.query.get(int(current_user_id))
 
     if not user:
@@ -180,7 +153,7 @@ def expired_token_callback(jwt_header, jwt_payload):
 
 # ─── Database Initializer & Entry Point ───────────────────────
 with app.app_context():
-    db.create_all()   # Auto-creates tables on first run
+    db.create_all()
 
 if __name__ == "__main__":
-    app.run(debug=False)   # debug=False for production safety
+    app.run(debug=False)
